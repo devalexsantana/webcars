@@ -3,9 +3,10 @@ import { Container } from "../../components/container";
 import { PanelHeader } from "../../components/panelHeader";
 import { useContext, useEffect, useState } from "react";
 import { collection, deleteDoc, doc, getDocs, orderBy, query, where } from "firebase/firestore";
-import { db } from "../../service/firebaseConnect";
+import { db, storage } from "../../service/firebaseConnect";
 import { Link } from "react-router-dom";
 import { AuthContext } from "../../contexts/AuthContext";
+import { deleteObject, ref } from "firebase/storage";
 
 interface CarsProps {
   id: string,
@@ -37,7 +38,7 @@ export function Dashboard() {
         return;
        }
       const carsRef = collection(db, "cars");
-      const queryRef = query(carsRef, where("uid", "==", user.uid),orderBy("created", "desc"));
+      const queryRef = query(carsRef, where("uid", "==", user.uid));
 
       getDocs(queryRef)
         .then((snapshot) => {
@@ -66,22 +67,37 @@ export function Dashboard() {
 
 
 
- async function handleDeleteCar(id: string){
-   const docRef = doc(db, "cars", id);
+ async function handleDeleteCar(car: CarsProps){
+   const itemCar = car; 
+
+   const docRef = doc(db, "cars", itemCar.id);
    await deleteDoc(docRef);
-   setCars(cars.filter(car => car.id !== id));
+
+   itemCar.images.map(async(image) => {
+       const imagePath = `images/${image.uid}/${image.name}`;
+       const imageRef = ref(storage, imagePath);
+
+       try {
+         await deleteObject(imageRef);
+         setCars(cars.filter(car => car.id !== itemCar.id));
+       } catch (error) {
+         console.log("error ao deletetar")
+       }
+  
+   });
+
+   
  }
   return (
     <Container>
       <PanelHeader />
       <main className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {cars.map(car => (
-          <Link key={car.id} to={`/car/${car.id}`}>
+        {cars.map(car => (         
             <section className="w-full bg-white rounded-lg relative">           
 
               <button
                 
-                onClick={() => {handleDeleteCar(car.id) }}
+                onClick={() => {handleDeleteCar(car) }}
                 className="absolute bg-white w-14 h-14 rounded-full flex items-center justify-center right-2 top-2 drop-shadow"
                 
                 >
@@ -105,7 +121,7 @@ export function Dashboard() {
                 <span className="text-zinc-700">{car.city}</span>
               </div>
             </section>
-          </Link>
+          
         ))}
       </main>
     </Container>
